@@ -29,6 +29,7 @@ import dev.brahmkshatriya.echo.common.settings.Setting
 import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.common.settings.Settings
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -370,10 +371,21 @@ class DeezerExtension : ExtensionClient, HomeFeedClient, TrackClient, SearchClie
         return if (streamable.quality == 1) {
             StreamableAudio.StreamableRequest(streamable.id.toRequest())
         } else {
-            getByteStreamAudio(streamable, client)
+            val audioHttpServer = AudioHttpServer(0) // Use 0 to bind to any available port
+            if (audioHttpServer.isAlive) {
+                audioHttpServer.stop()
+            }
+            audioHttpServer.clear()
+            audioHttpServer.start()
+
+            coroutineScope {
+                launch {
+                    getByteStreamAudio(streamable, client, audioHttpServer)
+                }
+            }
+
+            StreamableAudio.StreamableRequest("http://localhost:${audioHttpServer.listeningPort}".toRequest())
         }
-
-
     }
 
     override suspend fun getStreamableVideo(streamable: Streamable) = throw Exception("not Used")

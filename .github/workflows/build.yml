@@ -47,7 +47,7 @@ jobs:
         env:
           WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: |
-          message=$(echo "@everyone **${{ env.VERSION }}**\n${{ env.COMMIT }}")
+          message=$(echo "<@&1247881219128033393> **${{ env.VERSION }}**\n${{ env.COMMIT }}")
           curl -F "payload_json={\"content\":\"${message}\"}" \
           -F "file=@app/build/de-${{ env.VERSION }}.apk" \
           ${{ env.WEBHOOK }}

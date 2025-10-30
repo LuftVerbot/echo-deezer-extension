@@ -77,8 +77,8 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
             when (quality) {
                 "flac" -> createStreamableForQuality(track, "320")
                 "320" -> createStreamableForQuality(track, "128")
-                "128" -> throw Exception("Song not available")
-                else -> throw Exception("Song not available")
+                "128" -> throw Exception("Song not available", e)
+                else -> throw Exception("Song not available", e)
             }
         }
     }

@@ -97,7 +97,7 @@ class DeezerApi(private val session: DeezerSession) {
             .takeIf { !it.isNullOrEmpty() }
         return OkHttpClient.Builder().apply {
             if (useProxy && configuredProxy != null) {
-                val proxy = if (login) "uk.proxy.murglar.app" else configuredProxy
+                val proxy = if (login) "uk1.proxy.murglar.app" else configuredProxy
                 sslSocketFactory(createTrustAllSslSocketFactory(), createTrustAllTrustManager())
                 hostnameVerifier { _, _ -> true }
                 proxy(

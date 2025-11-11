@@ -75,8 +75,8 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
                 "Use Proxy",
                 "proxy",
                 "Use proxy to prevent GEO-Blocking",
-                mutableListOf("No Proxy", "UK", "RU 1", "RU 2"),
-                mutableListOf("", "uk.proxy.murglar.app", "ru1.proxy.murglar.app", "ru2.proxy.murglar.app"),
+                mutableListOf("No Proxy", "UK 1", "UK 2", "RU 1", "RU 2", "MD"),
+                mutableListOf("", "uk1.proxy.murglar.app", "uk2.proxy.murglar.app", "ru1.proxy.murglar.app", "ru2.proxy.murglar.app", "md.proxy.murglar.app"),
                 0
             ),
             SettingSwitch(

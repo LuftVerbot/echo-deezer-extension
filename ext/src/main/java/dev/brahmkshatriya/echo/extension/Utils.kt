@@ -9,6 +9,7 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 object Utils {
+    // Fuck github
     private const val SECRET = "g4el58wc0zvf9na1"
     private val secretIvSpec = IvParameterSpec(ByteArray(8) { it.toByte() })
     private val keySpecCache = ConcurrentHashMap<String, SecretKeySpec>()

@@ -80,6 +80,14 @@ class DeezerMedia(private val deezerApi: DeezerApi, private val clientNP: OkHttp
         val response = clientNP.newCall(request).await()
         val responseBody = response.body.string()
 
+        // If the service is currently unavailable, go back to deezer
+        if (responseBody.contains("All accounts are cooling down")) {
+            return deezerApi.getMP3MediaUrl(
+                track,
+                quality == "128"
+            )
+        }
+
         return deezerApi.decodeJson(responseBody)
     }
 }

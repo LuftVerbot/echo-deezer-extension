@@ -49,6 +49,7 @@ object AudioStreamProvider {
         val request = Request.Builder()
             .url(url)
             .header("Range", rangeHeader)
+            .header("cache", "no-store")
             .build()
 
         val response = client.newCall(request).execute()

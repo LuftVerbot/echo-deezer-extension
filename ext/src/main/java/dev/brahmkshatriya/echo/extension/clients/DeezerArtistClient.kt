@@ -19,31 +19,19 @@ class DeezerArtistClient(private val deezerExtension: DeezerExtension, private v
 
     fun getShelves(artist: Artist): Feed<Shelf> = PagedData.Single {
         deezerExtension.handleArlExpiration()
-        try {
-            val jsonObject = api.artist(artist.id)
-            val resultsObject = jsonObject["results"]!!.jsonObject
+        val jsonObject = api.artist(artist.id)
+        val resultsObject = jsonObject["results"]?.jsonObject ?: return@Single emptyList()
 
-            val keyToBlock: Map<String, DeezerParser.(JsonObject) -> Shelf?> = parser.run {
-                shelfFactories
-            }
-
-            orderedKeys.mapNotNull { key ->
-                val value = resultsObject[key]
-                val block = keyToBlock[key]
-                if (value != null && block != null) {
-                    block.invoke(parser, value.jsonObject)
-                } else null
-            }
-        } catch (e: Exception) {
-            throw e
+        orderedKeys.mapNotNull { key ->
+            val payload = resultsObject[key] ?: return@mapNotNull null
+            shelfFactories[key]?.invoke(parser, payload.jsonObject)
         }
     }.toFeed()
 
     suspend fun loadArtist(artist: Artist): Artist {
         deezerExtension.handleArlExpiration()
         val jsonObject = api.artist(artist.id)
-        val resultsObject =
-            jsonObject["results"]?.jsonObject ?: return artist
+        val resultsObject = jsonObject["results"]?.jsonObject ?: return artist
         return parser.run { resultsObject.toArtist() }
     }
 
@@ -62,37 +50,43 @@ class DeezerArtistClient(private val deezerExtension: DeezerExtension, private v
     fun getFollowersCount(item: EchoMediaItem): Long? = item.extras["followers"]?.toLongOrNull()
 
     private companion object {
+        private fun Shelf.isEffectivelyEmpty(): Boolean = when (this) {
+            is Shelf.Lists.Items -> list.isEmpty()
+            is Shelf.Lists.Tracks -> list.isEmpty()
+            else -> false
+        }
+        private fun Shelf?.nullIfEmpty(): Shelf? = this?.takeIf { !it.isEffectivelyEmpty() }
+
         private val shelfFactories: Map<String, DeezerParser.(JsonObject) -> Shelf?> = mapOf(
-            "TOP" to { jObject ->
+            "TOP" to filterEmpty { jObject ->
                 val shelf =
                     jObject["data"]?.jsonArray?.toShelfItemsList("Top") as? Shelf.Lists.Items
-                val preList = shelf?.list as? List<Track>
-                val list = preList?.asSequence()?.map { it }?.toList() ?: emptyList()
-                Shelf.Lists.Tracks(
+                val list = (shelf?.list as? List<Track>).orEmpty()
+                if (list.isEmpty()) null
+                else Shelf.Lists.Tracks(
                     id = shelf?.id.orEmpty(),
                     title = shelf?.title.orEmpty(),
                     subtitle = shelf?.subtitle,
                     type = Shelf.Lists.Type.Linear,
-                    more = list.map {
-                            it.toShelf()
-                        }.toFeed(),
+                    more = list.map { it.toShelf() }.toFeed(),
                     list = list.take(5)
                 )
             },
-            "HIGHLIGHT" to { jObject ->
-                jObject["ITEM"]?.jsonObject?.toShelfItemsList("Highlight")
+            "HIGHLIGHT" to filterEmpty { jObject ->
+                jObject["ITEM"]?.jsonObject?.toShelfItemsList("Highlight").nullIfEmpty()
             },
-            "SELECTED_PLAYLIST" to { jObject ->
-                jObject["data"]?.jsonArray?.toShelfItemsList("Selected Playlists")
+            "SELECTED_PLAYLIST" to filterEmpty { jObject ->
+                jObject["data"]?.jsonArray?.toShelfItemsList("Selected Playlists").nullIfEmpty()
             },
-            "RELATED_PLAYLIST" to { jObject ->
-                jObject["data"]?.jsonArray?.toShelfItemsList("Related Playlists")
+            "RELATED_PLAYLIST" to filterEmpty { jObject ->
+                jObject["data"]?.jsonArray?.toShelfItemsList("Related Playlists").nullIfEmpty()
             },
-            "RELATED_ARTISTS" to { jObject ->
+            "RELATED_ARTISTS" to filterEmpty { jObject ->
                 val shelf =
                     jObject["data"]?.jsonArray?.toShelfItemsList("Related Artists") as? Shelf.Lists.Items
-                val list = shelf?.list ?: emptyList()
-                Shelf.Lists.Items(
+                val list = shelf?.list.orEmpty()
+                if (list.isEmpty()) null
+                else Shelf.Lists.Items(
                     id = shelf?.id.orEmpty(),
                     title = shelf?.title.orEmpty(),
                     subtitle = shelf?.subtitle,
@@ -101,11 +95,12 @@ class DeezerArtistClient(private val deezerExtension: DeezerExtension, private v
                     list = list
                 )
             },
-            "ALBUMS" to { jObject ->
+            "ALBUMS" to filterEmpty { jObject ->
                 val shelf =
                     jObject["data"]?.jsonArray?.toShelfItemsList("Albums") as? Shelf.Lists.Items
-                val list = shelf?.list ?: emptyList()
-                Shelf.Lists.Items(
+                val list = shelf?.list.orEmpty()
+                if (list.isEmpty()) null
+                else Shelf.Lists.Items(
                     id = shelf?.id.orEmpty(),
                     title = shelf?.title.orEmpty(),
                     subtitle = shelf?.subtitle,
@@ -115,6 +110,12 @@ class DeezerArtistClient(private val deezerExtension: DeezerExtension, private v
                 )
             }
         )
+
+        private fun filterEmpty(
+            block: DeezerParser.(JsonObject) -> Shelf?
+        ): DeezerParser.(JsonObject) -> Shelf? = { json ->
+            block(this, json)?.takeIf { !it.isEffectivelyEmpty() }
+        }
 
         private val orderedKeys = listOf(
             "TOP",

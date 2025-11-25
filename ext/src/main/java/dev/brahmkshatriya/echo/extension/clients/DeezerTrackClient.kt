@@ -7,6 +7,7 @@ import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.extension.AudioStreamProvider
 import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerExtension
+import dev.brahmkshatriya.echo.extension.DeezerParser
 import dev.brahmkshatriya.echo.extension.Utils
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -14,7 +15,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 
-class DeezerTrackClient(private val deezerExtension: DeezerExtension, private val api: DeezerApi) {
+class DeezerTrackClient(private val deezerExtension: DeezerExtension, private val api: DeezerApi, private val parser: DeezerParser) {
 
     private val client by lazy { OkHttpClient() }
 
@@ -31,20 +32,38 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
         return try {
             val currentTrackId = track.id
             val mediaJson =
-                if ((quality != "128" && quality != "mp3") ||
-                    track.extras["TRACK_TOKEN"]?.isEmpty() == true
-                ) api.getMediaUrl(track, quality)
+                if (quality != "128" && quality != "mp3") api.getMediaUrl(track, quality)
                 else api.getMP3MediaUrl(track, quality == "128")
-            if (mediaJson.toString().contains("License token has no sufficient rights on requested media")) createStreamableForQuality(track, "128")
+            val mjString = mediaJson.toString()
+            if (mjString.contains("License token has no sufficient rights on requested media")) createStreamableForQuality(track, "128")
             val trackJsonData = mediaJson["data"]?.jsonArray?.firstOrNull()?.jsonObject
             val mediaIsEmpty = trackJsonData?.get("media")?.jsonArray?.isEmpty() == true
 
             val (finalUrl, fallbackTrack) = when {
-                mediaJson.toString().contains("Track token has no sufficient rights on requested media") || mediaIsEmpty -> {
-                    val fallbackParsed = track.copy(id = track.extras["FALLBACK_ID"].orEmpty())
-                    val fallbackMediaJson = api.getMediaUrl(fallbackParsed, quality)
-                    val url = extractUrlFromJson(fallbackMediaJson)!!
-                    url to fallbackParsed
+                mjString.contains("Track token has no sufficient rights on requested media") || mediaIsEmpty -> {
+                    val fallBackId = track.extras["FALLBACK_ID"].orEmpty()
+                    if (quality == "128") {
+                        val fallbackObject = api.track(fallBackId)
+                        val resultOj = fallbackObject["results"]?.jsonObject!!
+                        val fallBackTrack = parser.run { resultOj.toTrack() }
+                        val fbMediaJson = api.getMP3MediaUrl(fallBackTrack, true)
+                        val url = extractUrlFromJson(fbMediaJson)!!
+                        url to fallBackTrack
+                    } else {
+                        val fallbackParsed = track.copy(id = fallBackId)
+                        val fallbackMediaJson = api.getMediaUrl(fallbackParsed, quality)
+                        val url = extractUrlFromJson(fallbackMediaJson)!!
+                        url to fallbackParsed
+                    }
+                }
+
+                mjString.contains("An error occurred while decoding track token") -> {
+                    val fallbackObject = api.track(currentTrackId)
+                    val resultOj = fallbackObject["results"]?.jsonObject!!
+                    val fallBackTrack = parser.run { resultOj.toTrack() }
+                    val fbMediaJson = api.getMP3MediaUrl(fallBackTrack, true)
+                    val url = extractUrlFromJson(fbMediaJson)!!
+                    url to fallBackTrack
                 }
 
                 else -> {

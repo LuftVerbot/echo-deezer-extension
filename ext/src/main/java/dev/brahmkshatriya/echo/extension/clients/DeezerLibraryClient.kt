@@ -7,87 +7,91 @@ import dev.brahmkshatriya.echo.common.models.Tab
 import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerExtension
 import dev.brahmkshatriya.echo.extension.DeezerParser
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 
-class DeezerLibraryClient(private val deezerExtension: DeezerExtension, private val api: DeezerApi, private val parser: DeezerParser) {
+class DeezerLibraryClient(
+    private val deezerExtension: DeezerExtension,
+    private val api: DeezerApi,
+    private val parser: DeezerParser,
+    private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default
+) {
 
-    private val tabs = listOf(
-        Tab("all", "All"),
-        Tab("playlists", "Playlists"),
-        Tab("albums", "Albums"),
-        Tab("tracks", "Tracks"),
-        Tab("artists", "Artists"),
-        Tab("shows", "Podcasts")
+    private val tabs: List<Tab> = listOf(
+        Tab(TabId.ALL.id, "All"),
+        Tab(TabId.PLAYLISTS.id, "Playlists"),
+        Tab(TabId.ALBUMS.id, "Albums"),
+        Tab(TabId.TRACKS.id, "Tracks"),
+        Tab(TabId.ARTISTS.id, "Artists"),
+        Tab(TabId.SHOWS.id, "Podcasts")
     )
 
-    suspend fun loadLibraryFeedAll(): List<Shelf>? {
-        deezerExtension.handleArlExpiration()
+    private data class TabConfig(
+        val id: TabId,
+        val title: String,
+        val request: suspend DeezerApi.() -> JsonObject,
+        val extractor: (JsonObject) -> JsonArray?
+    )
 
-        return supervisorScope {
-            tabs.map { tab ->
-                async(Dispatchers.Default) {
-                    val jsonObject = when (tab.id) {
-                        "playlists" -> api.getPlaylists()
-                        "albums" -> api.getAlbums()
-                        "tracks" -> api.getTracks()
-                        "artists" -> api.getArtists()
-                        "shows" -> api.getShows()
-                        else -> null
-                    } ?: return@async null
-                    val resultObject =
-                        jsonObject["results"]?.jsonObject ?: return@async null
-                    val dataArray = when (tab.id) {
-                        "playlists", "albums", "artists", "shows" -> {
-                            val tabObject =
-                                resultObject["TAB"]?.jsonObject?.get(tab.id)?.jsonObject
-                            tabObject?.get("data")?.jsonArray
-                        }
-
-                        "tracks" -> resultObject["data"]?.jsonArray
-                        else -> return@async null
-                    }
-                    parser.run {
-                        dataArray?.toShelfItemsList(tab.title)
-                    }
-                }
-            }.mapNotNull { it.await() }
-        }
+    private enum class TabId(val id: String) {
+        ALL("all"),
+        PLAYLISTS("playlists"),
+        ALBUMS("albums"),
+        TRACKS("tracks"),
+        ARTISTS("artists"),
+        SHOWS("shows")
     }
+
+    private val configs: Map<String, TabConfig> = listOf(
+        TabConfig(TabId.PLAYLISTS, "Playlists", { getPlaylists() }) { it.tabDataArray("playlists") },
+        TabConfig(TabId.ALBUMS, "Albums", { getAlbums() }) { it.tabDataArray("albums") },
+        TabConfig(TabId.TRACKS, "Tracks", { getTracks() }) { it.resultsDataArray() },
+        TabConfig(TabId.ARTISTS, "Artists", { getArtists() }) { it.tabDataArray("artists") },
+        TabConfig(TabId.SHOWS, "Podcasts", { getShows() }) { it.tabDataArray("shows") },
+    ).associateBy { it.id.id }
+
 
     suspend fun loadLibraryFeed(): Feed<Shelf> {
         deezerExtension.handleArlExpiration()
-
         return Feed(tabs) { tab ->
-            when (tab?.id) {
-                "all" -> loadLibraryFeedAll() ?: emptyList()
-                "playlists" -> fetchData { api.getPlaylists() }
-                "albums" -> fetchData { api.getAlbums() }
-                "tracks" -> fetchData { api.getTracks() }
-                "artists" -> fetchData { api.getArtists() }
-                "shows" -> fetchData { api.getShows() }
-                else -> emptyList()
-            }.toFeedData(Feed.Buttons(showPlayAndShuffle = true))
-        }
-    }
-
-    private suspend fun fetchData(apiCall: suspend () -> JsonObject): List<Shelf> {
-        val jsonObject = apiCall()
-        val resultObject = jsonObject["results"]?.jsonObject ?: return emptyList()
-        val dataArray = when {
-            resultObject["data"] != null -> resultObject["data"]?.jsonArray ?: emptyList()
-            resultObject["TAB"] != null -> resultObject["TAB"]?.jsonObject?.values?.firstOrNull()?.jsonObject?.get("data")?.jsonArray
-            else -> null
-        }
-
-        return dataArray?.mapNotNull { item ->
-            parser.run {
-                item.jsonObject.toEchoMediaItem()?.toShelf()
+            val id = tab?.id
+            val data = when (id) {
+                TabId.ALL.id -> loadAll() ?: emptyList()
+                else -> loadSingle(id)
             }
-        } ?: emptyList()
+            data.toFeedData(Feed.Buttons(showPlayAndShuffle = true))
+        }
     }
+
+    private suspend fun loadAll(): List<Shelf>? = supervisorScope {
+        deezerExtension.handleArlExpiration()
+        configs.values.map { cfg ->
+            async(cpuDispatcher) {
+                val json = cfg.request(api)
+                val items = cfg.extractor(json) ?: return@async null
+                parser.run { items.toShelfItemsList(cfg.title) }
+            }
+        }.awaitAll().filterNotNull()
+    }
+
+    private suspend fun loadSingle(id: String?): List<Shelf> {
+        val cfg = configs[id] ?: return emptyList()
+        deezerExtension.handleArlExpiration()
+        val json = cfg.request(api)
+        val arr = cfg.extractor(json) ?: return emptyList()
+        return parser.run { arr.mapNotNull { it.jsonObject.toEchoMediaItem()?.toShelf() } }
+    }
+
+    private fun JsonObject.results(): JsonObject? = this["results"]?.jsonObject
+    private fun JsonObject.resultsDataArray(): JsonArray? =
+        results()?.get("data")?.jsonArray
+    private fun JsonObject.tabDataArray(tabId: String): JsonArray? =
+        results()?.get("TAB")?.jsonObject?.get(tabId)?.jsonObject?.get("data")?.jsonArray
 }

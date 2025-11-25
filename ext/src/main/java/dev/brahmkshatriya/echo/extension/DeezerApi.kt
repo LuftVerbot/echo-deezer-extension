@@ -394,7 +394,7 @@ class DeezerApi(private val session: DeezerSession) {
 
     private val deezerTrack by lazy { DeezerTrack(this) }
 
-    suspend fun track(tracks: Array<Track>): JsonObject = deezerTrack.track(tracks)
+    suspend fun track(id: String): JsonObject = deezerTrack.track(id)
 
     suspend fun getTracks(): JsonObject = deezerTrack.getTracks(userId)
 

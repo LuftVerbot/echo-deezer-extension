@@ -1,19 +1,16 @@
 package dev.brahmkshatriya.echo.extension.api
 
-import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.extension.DeezerApi
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.add
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.put
 
 class DeezerTrack(private val deezerApi: DeezerApi) {
 
-    suspend fun track(tracks: Array<Track>): JsonObject {
+    suspend fun track(id: String): JsonObject {
         return deezerApi.callApi(
-            method = "song.getListData",
+            method = "deezer.pageTrack",
             paramsBuilder = {
-                put("sng_ids", buildJsonArray { tracks.forEach { add(it.id) } })
+                put("sng_id", id)
             },
             np = true
         )

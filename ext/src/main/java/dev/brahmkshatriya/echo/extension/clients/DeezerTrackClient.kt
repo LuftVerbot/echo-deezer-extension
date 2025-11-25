@@ -42,7 +42,16 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
             val (finalUrl, fallbackTrack) = when {
                 mediaJson.toString().contains("Track token has no sufficient rights on requested media") || mediaIsEmpty -> {
                     val fallbackParsed = track.copy(id = track.extras["FALLBACK_ID"].orEmpty())
-                    val fallbackMediaJson = api.getMediaUrl(fallbackParsed, quality)
+                    var fallbackMediaJson = api.getMediaUrl(fallbackParsed, quality)
+                    // If the fallback still does not work, the track token is wrong and needs to be refreshed
+                    if (fallbackMediaJson.toString().contains("Track token has no sufficient rights on requested media")) {
+                        val jsonObject = api.track(arrayOf(fallbackParsed)) // Refresh track info
+                        val trackToken = jsonObject["results"]!!.jsonObject["data"]!!.jsonArray[0].jsonObject["TRACK_TOKEN"]?.jsonPrimitive?.content.orEmpty()
+                        val refreshedFallbackParsed = fallbackParsed.copy(
+                            extras = fallbackParsed.extras + ("TRACK_TOKEN" to trackToken)
+                        )
+                        fallbackMediaJson = api.getMP3MediaUrl(refreshedFallbackParsed, quality == "128")
+                    }
                     val url = extractUrlFromJson(fallbackMediaJson)!!
                     url to fallbackParsed
                 }

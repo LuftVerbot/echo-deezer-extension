@@ -5,7 +5,7 @@ This is an extension for the Extension based Music Player [Echo](https://github.
 
 ## Features
 
-- **High-Quality Audio Support**: FLAC, 320kbps, or 128kbps without a premium account.
+- **High-Quality Audio Support**: FLAC, 320kbps, or 128kbps without a premium account(May sometimes be unstable, due to accounts on the server).
 - **Multiple Login Options**: Choose from three different ways to sign in.
 - **Personal Library Access**: Access your Deezer library directly within Echo.
 - **Diverse Radio Options**: Explore various radio features, including Flow and more.
@@ -59,9 +59,9 @@ Ensure you have Echo installed on your device before proceeding. Currently it's 
 
 ### How is FLAC/320 possible without a Premium Account?
 
-> *"Well, I use a script, or rather a server, that gives back the premium songs. It was created by [@uhwot](https://github.com/uhwot), and I simply stumbled upon it while doing research about stuff for Deezer.*"
+> *"Well, I host a server that gives back the premium songs. It was created by [@uhwot](https://github.com/uhwot), and I simply stumbled upon it while doing research about stuff for Deezer.*"
 
 ## Acknowledgements
 
 - **[Echo](https://github.com/brahmkshatriya/echo)**: Created by [@brahmkshatriya](https://github.com/brahmkshatriya).
-- **[dzunlock](https://uhwotgit.fly.dev/uhwot/dzunlock)**: Created by [@uhwot](https://github.com/uhwot).
+- **[dzmedia](https://uhwotgit.fly.dev/uhwot/dzmedia)**: Created by [@uhwot](https://github.com/uhwot).

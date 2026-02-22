@@ -11,6 +11,7 @@ import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerExtension
 import dev.brahmkshatriya.echo.extension.DeezerParser
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -19,7 +20,7 @@ import java.util.Locale
 class DeezerSearchClient(private val deezerExtension: DeezerExtension, private val api: DeezerApi, private val history: Boolean, private val parser: DeezerParser) {
 
     @Volatile
-    private var oldSearch: Pair<String, List<Shelf>>? = null
+    private var oldSearch: Triple<String, List<Shelf>, JsonObject?>? = null
 
     private fun JsonArray?.toQueryList(key: String, historyFlag: Boolean) =
         this?.mapNotNull { item ->
@@ -59,14 +60,15 @@ class DeezerSearchClient(private val deezerExtension: DeezerExtension, private v
         return Feed(loadSearchFeedTabs(query)) { tab ->
             if (tab?.id == "TOP_RESULT") return@Feed emptyList<Shelf>().toFeedData()
 
+            val cached = oldSearch?.takeIf { it.first == query }
+
             if (tab?.id == "All") {
-                oldSearch?.takeIf { it.first == query }?.second.let {
-                    return@Feed it?.toFeedData()!!
-                }
+                return@Feed cached?.second?.toFeedData() ?: emptyList<Shelf>().toFeedData()
             }
 
-            val jsonObject = api.search(query)
-            val resultObject = jsonObject["results"]?.jsonObject
+            val resultObject = cached?.third
+                ?: api.search(query)["results"]?.jsonObject
+
             val dataArray = resultObject?.get(tab?.id ?: "")?.jsonObject?.get("data")?.jsonArray
 
             return@Feed dataArray?.mapNotNull { item ->
@@ -138,7 +140,7 @@ class DeezerSearchClient(private val deezerExtension: DeezerExtension, private v
             }
         } ?: emptyList()
 
-        oldSearch = query to tabs.mapNotNull { tab ->
+        val allShelves = tabs.mapNotNull { tab ->
             val name = tab.id
             val tabObject = resultObject?.get(name)?.jsonObject
             val dataArray = tabObject?.get("data")?.jsonArray
@@ -148,6 +150,7 @@ class DeezerSearchClient(private val deezerExtension: DeezerExtension, private v
                         .replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() })
             }
         }
+        oldSearch = Triple(query, allShelves, resultObject)
         return listOf(Tab("All", "All")) + tabs
     }
 

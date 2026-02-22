@@ -11,7 +11,6 @@ import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerExtension
 import dev.brahmkshatriya.echo.extension.DeezerParser
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -22,36 +21,27 @@ class DeezerSearchClient(private val deezerExtension: DeezerExtension, private v
     @Volatile
     private var oldSearch: Pair<String, List<Shelf>>? = null
 
+    private fun JsonArray?.toQueryList(key: String, historyFlag: Boolean) =
+        this?.mapNotNull { item ->
+            item.jsonObject[key]?.jsonPrimitive?.content?.let { QuickSearchItem.Query(it, historyFlag) }
+        } ?: emptyList()
+
     suspend fun quickSearch(query: String): List<QuickSearchItem.Query> {
         deezerExtension.handleArlExpiration()
         return if (query.isBlank()) {
-            val queryList = mutableListOf<QuickSearchItem.Query>()
             val jsonObject = api.getSearchHistory()
             val resultObject = jsonObject["results"]!!.jsonObject
             val searchObject = resultObject["SEARCH_HISTORY"]?.jsonObject
             val dataArray = searchObject?.get("data")?.jsonArray
-            val historyList = dataArray?.mapNotNull { item ->
-                val queryItem = item.jsonObject["query"]?.jsonPrimitive?.content
-                queryItem?.let { QuickSearchItem.Query(it, true) }
-            } ?: emptyList()
-            queryList.addAll(historyList)
             val trendingObject = resultObject["TRENDING_QUERIES"]?.jsonObject
             val dataTrendingArray = trendingObject?.get("data")?.jsonArray
-            val trendingList = dataTrendingArray?.mapNotNull { item ->
-                val queryItem = item.jsonObject["QUERY"]?.jsonPrimitive?.content
-                queryItem?.let { QuickSearchItem.Query(it, false) }
-            } ?: emptyList()
-            queryList.addAll(trendingList)
-            queryList
+            dataArray.toQueryList("query", true) + dataTrendingArray.toQueryList("QUERY", false)
         } else {
             runCatching {
                 val jsonObject = api.searchSuggestions(query)
                 val resultObject = jsonObject["results"]?.jsonObject
                 val suggestionArray = resultObject?.get("SUGGESTION")?.jsonArray
-                suggestionArray?.mapNotNull { item ->
-                    val queryItem = item.jsonObject["QUERY"]?.jsonPrimitive?.content
-                    queryItem?.let { QuickSearchItem.Query(it, false) }
-                } ?: emptyList()
+                suggestionArray.toQueryList("QUERY", false)
             }.getOrElse {
                 emptyList()
             }
@@ -77,19 +67,11 @@ class DeezerSearchClient(private val deezerExtension: DeezerExtension, private v
 
             val jsonObject = api.search(query)
             val resultObject = jsonObject["results"]?.jsonObject
+            val dataArray = resultObject?.get(tab?.id ?: "")?.jsonObject?.get("data")?.jsonArray
 
-            val processSearchResults: (JsonObject) -> List<Shelf> = { resultObj ->
-                val tabObject = resultObj[tab?.id ?: ""]?.jsonObject
-                val dataArray = tabObject?.get("data")?.jsonArray
-
-                dataArray?.mapNotNull { item ->
-                    parser.run {
-                        item.jsonObject.toEchoMediaItem()?.toShelf()
-                    }
-                } ?: emptyList()
-            }
-
-            return@Feed processSearchResults(resultObject ?: JsonObject(emptyMap())).toFeedData()
+            return@Feed dataArray?.mapNotNull { item ->
+                parser.run { item.jsonObject.toEchoMediaItem()?.toShelf() }
+            }.orEmpty().toFeedData()
         }
     }
 

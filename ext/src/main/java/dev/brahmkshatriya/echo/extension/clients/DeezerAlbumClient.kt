@@ -14,50 +14,30 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class DeezerAlbumClient(private val deezerExtension: DeezerExtension, private val api: DeezerApi, private val parser: DeezerParser) {
 
+    private suspend fun results(album: Album) =
+        (if (album.type == Album.Type.Show) api.show(album) else api.album(album))["results"]!!.jsonObject
+
     suspend fun loadAlbum(album: Album): Album {
         deezerExtension.handleArlExpiration()
-        if (album.type == Album.Type.Show) {
-            val jsonObject = api.show(album)
-            val resultsObject = jsonObject["results"]!!.jsonObject
-            return parser.run { resultsObject.toShow() }
-        } else {
-            val jsonObject = api.album(album)
-            val resultsObject = jsonObject["results"]!!.jsonObject
-            return parser.run { resultsObject.toAlbum() }
-        }
+        val resultsObject = results(album)
+        return parser.run { if (album.type == Album.Type.Show) resultsObject.toShow() else resultsObject.toAlbum() }
     }
 
     fun loadTracks(album: Album): Feed<Track> = PagedData.Single {
         deezerExtension.handleArlExpiration()
+        val resultsObject = results(album)
         if (album.type == Album.Type.Show) {
-            val jsonObject = api.show(album)
-            val resultsObject = jsonObject["results"]!!.jsonObject
-            val episodesObject = resultsObject["EPISODES"]!!.jsonObject
-            val dataArray = episodesObject["data"]!!.jsonArray
-
-            val bookmarkJsonObj = api.getBookmarkedEpisodes()
-            val bookmarkResultsObj = bookmarkJsonObj["results"]!!.jsonObject
-            val bookmarkDataArray = bookmarkResultsObj["data"]!!.jsonArray
-
-            val bookmarkMap = mutableMapOf<String?, Long?>()
-
-            bookmarkDataArray.map { ep ->
-                val id = ep.jsonObject["EPISODE_ID"]?.jsonPrimitive?.content
-                val offset = ep.jsonObject["OFFSET"]?.jsonPrimitive?.content?.toLongOrNull()
-                bookmarkMap.put(id, offset)
+            val dataArray = resultsObject["EPISODES"]!!.jsonObject["data"]!!.jsonArray
+            val bookmarkMap = api.getBookmarkedEpisodes()["results"]!!.jsonObject["data"]!!.jsonArray.associate { ep ->
+                ep.jsonObject["EPISODE_ID"]?.jsonPrimitive?.content to
+                        ep.jsonObject["OFFSET"]?.jsonPrimitive?.content?.toLongOrNull()
             }
 
-            val data = dataArray.map { episode ->
-                parser.run {
-                    episode.jsonObject.toEpisode(bookmarkMap)
-                }
+            dataArray.map { episode ->
+                parser.run { episode.jsonObject.toEpisode(bookmarkMap) }
             }.reversed()
-            data
         } else {
-            val jsonObject = api.album(album)
-            val resultsObject = jsonObject["results"]!!.jsonObject
-            val songsObject = resultsObject["SONGS"]!!.jsonObject
-            val dataArray = songsObject["data"]!!.jsonArray
+            val dataArray = resultsObject["SONGS"]!!.jsonObject["data"]!!.jsonArray
             dataArray.mapIndexed { index, song ->
                 val currentTrack = parser.run { song.jsonObject.toTrack() }
                 val nextTrack = parser.run { dataArray.getOrNull(index + 1)?.jsonObject?.toTrack() }

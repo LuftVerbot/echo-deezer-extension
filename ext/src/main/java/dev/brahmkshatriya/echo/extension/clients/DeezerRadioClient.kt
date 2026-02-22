@@ -86,21 +86,25 @@ class DeezerRadioClient(private val api: DeezerApi, private val parser: DeezerPa
         }
 
         is Track -> {
-            val track = item
             when (context) {
-                null -> track.asTrackRadio()
+                null -> item.asTrackRadio()
                 is Radio -> when (context.kind()) {
-                    RadioKind.TRACK -> track.asTrackRadio()
-                    RadioKind.ARTIST -> context.asArtistRadio()
-                    RadioKind.PLAYLIST -> track.asCollectionTrackRadio("playlist")
-                    RadioKind.ALBUM -> track.asCollectionTrackRadio("album")
+                    RadioKind.TRACK -> item.asTrackRadio()
+                    RadioKind.ARTIST -> Radio(
+                        id = context.id,
+                        title = context.title,
+                        cover = context.cover,
+                        extras = mapOf("radio" to "artist")
+                    )
+                    RadioKind.PLAYLIST -> item.asCollectionTrackRadio("playlist")
+                    RadioKind.ALBUM -> item.asCollectionTrackRadio("album")
                     RadioKind.FLOW -> context
                 }
                 is Artist -> Radio(context.id, context.name, context.cover,
                     mapOf("radio" to "artist") as List<Artist>
                 )
-                is Playlist -> track.asCollectionTrackRadio("playlist")
-                is Album -> track.asCollectionTrackRadio("album")
+                is Playlist -> item.asCollectionTrackRadio("playlist")
+                is Album -> item.asCollectionTrackRadio("album")
                 else -> error("No Radio")
             }
         }
@@ -123,13 +127,6 @@ class DeezerRadioClient(private val api: DeezerApi, private val parser: DeezerPa
         title = title,
         cover = cover,
         extras = mapOf("radio" to "track")
-    )
-
-    private fun Radio.asArtistRadio() = Radio(
-        id = id,
-        title = title,
-        cover = cover,
-        extras = mapOf("radio" to "artist")
     )
 
     private fun Track.asCollectionTrackRadio(tag: String) = Radio(

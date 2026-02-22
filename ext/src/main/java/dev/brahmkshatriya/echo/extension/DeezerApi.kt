@@ -57,6 +57,10 @@ class DeezerApi(private val session: DeezerSession) {
 
         private const val APP_API_KEY =
             "4VCYIJUCDLOUELGD1V8WBVYBNVDYOXEWSLLZDONGBBDFVXTZJRXPR29JRLQFO6ZE"
+
+        private const val CLIENT_ID = "447462"
+
+        private const val CLIENT_SECRET = "a83bf7f38ad2f137e444727cfc3775cf"
     }
 
     private val language: String
@@ -65,7 +69,8 @@ class DeezerApi(private val session: DeezerSession) {
     private val country: String
         get() = session.settings?.getString("country") ?: Locale.getDefault().country
 
-    val langCode = language.substringBefore("-")
+    val langCode: String
+        get() = language.substringBefore("-")
 
     private val credentials: DeezerCredentials
         get() = session.credentials
@@ -133,13 +138,10 @@ class DeezerApi(private val session: DeezerSession) {
     private val staticHeaders: Headers by lazy {
         Headers.Builder().apply {
             add("Accept", "*/*")
-            add("Accept-Language", "$language,*")
             add("Cache-Control", "max-age=0")
             add("Connection", "keep-alive")
-            add("Content-Language", language)
             add("Content-Type", "application/json")
             add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.130 Safari/537.36")
-            add("x-deezer-user", userId)
             add("X-User-IP", "1.1.1.1")
             add("x-deezer-client-ip", "1.1.1.1")
         }.build()
@@ -159,6 +161,9 @@ class DeezerApi(private val session: DeezerSession) {
             } else {
                 add("Cookie", "sid=$sid")
             }
+            add("Accept-Language", "$language,*")
+            add("Content-Language", language)
+            add("x-deezer-user", userId)
         }.build()
     }
 
@@ -296,15 +301,13 @@ class DeezerApi(private val session: DeezerSession) {
             // Get SID
             getSid()
 
-            val clientId = "447462"
-            val clientSecret = "a83bf7f38ad2f137e444727cfc3775cf"
             val md5Password = md5(password)
 
             val params = mapOf(
-                "app_id" to clientId,
+                "app_id" to CLIENT_ID,
                 "login" to mail,
                 "password" to md5Password,
-                "hash" to md5(clientId + mail + md5Password + clientSecret)
+                "hash" to md5(CLIENT_ID + mail + md5Password + CLIENT_SECRET)
             )
 
             // Get access token

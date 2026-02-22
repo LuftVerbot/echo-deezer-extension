@@ -12,9 +12,13 @@ object Utils {
     // Fuck github
     private const val SECRET = "g4el58wc0zvf9na1"
     private val secretIvSpec = IvParameterSpec(ByteArray(8) { it.toByte() })
-    private val keySpecCache = ConcurrentHashMap<String, SecretKeySpec>()
+    private val keySpecCache = LinkedHashMap<String, SecretKeySpec>()
 
-    private val md5Digest: MessageDigest by lazy { MessageDigest.getInstance("MD5") }
+    private val preCipher = Cipher.getInstance("BLOWFISH/CBC/NoPadding")
+
+    private const val CIPHER_MODE = Cipher.DECRYPT_MODE
+
+    private val md5Digest: MessageDigest = MessageDigest.getInstance("MD5")
 
     private val charset = Charsets.ISO_8859_1
 
@@ -43,8 +47,8 @@ object Utils {
 
     fun decryptBlowfish(chunk: ByteArray, blowfishKey: String): ByteArray {
         val secretKeySpec = getSecretKeySpec(blowfishKey)
-        val cipher = Cipher.getInstance("BLOWFISH/CBC/NoPadding").apply {
-            init(Cipher.DECRYPT_MODE, secretKeySpec, secretIvSpec)
+        val cipher = preCipher.apply {
+            init(CIPHER_MODE, secretKeySpec, secretIvSpec)
         }
         return cipher.doFinal(chunk)
     }

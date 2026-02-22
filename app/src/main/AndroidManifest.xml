@@ -58,6 +58,8 @@
                 <data android:scheme="https" />
                 <data android:host="www.deezer.com" />
                 <data android:host="deezer.page.link" />
+                <data android:host="link.deezer.com" />
+                <data android:host="dzr.page.link" />
             </intent-filter>
         </activity>
     </application>

@@ -67,22 +67,25 @@ class DeezerHomeFeedClient(
         private val dispatcher = Dispatchers.Default
         private val ITEM_MODULE_IDS = setOf(
             // Free Users
-            "b21892d3-7e9c-4b06-aff6-2c3be3266f68", "348128f5-bed6-4ccb-9a37-8e5f5ed08a62",
-            "8d10a320-f130-4dcb-a610-38baf0c57896", "2a7e897f-9bcf-4563-8e11-b93a601766e1",
-            "7a65f4ed-71e1-4b6e-97ba-4de792e4af62", "25f9200f-1ce0-45eb-abdc-02aecf7604b2",
-            "c320c7ad-95f5-4021-8de1-cef16b053b6d", "b2e8249f-8541-479e-ab90-cf4cf5896cbc",
-            "927121fd-ef7b-428e-8214-ae859435e51c",
+            "b2a95246-f86f-41aa-b700-3474c66d8ff7", "4c4770ef-e1cf-40d4-b4e6-8620776b2350",
+            "9e6ea72c-618f-42a6-b17e-e85b8b9e88b9", "096efd8f-5662-45b6-92db-3195ce556746",
+            "c75e0541-47fe-402d-9412-78fcbb5c88de", "4bad552e-c627-41e1-b6fa-a5df202bdb9f",
+            "f3aee56a-bd9d-4817-8b32-dd402f8df308", "03903603-87a7-4db3-ac18-1b276b9f7d13",
+            "f0ed258e-9980-4ecb-84d6-64ef4ff5cf8e",
             // Premium Users
-            "b184d536-761e-40fb-b0cc-55d6c81b4d45", "19ebda68-51fd-4de6-af40-6da6a76c85ba",
-            "8e59d00d-63a7-4aff-8d47-d19293f738b2", "9f425321-7757-4db4-9a2a-76892684fdc0",
-            "33d3a14c-5716-4343-87e1-4ec3ac4fd49b", "f7577bb4-5406-4aef-9db7-ed7418eb2827"
+            "90c445b6-8960-4d80-978c-faf8869cc0b1", "6b4c1fda-a7d9-436e-9b73-0edc92ec9bf7",
+            "9d5188cc-effd-4f17-a1ff-1fbc0be255f3", "98436aef-3b26-4237-bc0b-e63c92eb3885",
+            "5b739620-33bd-45ee-afbc-8d032abfb955", "5aca0bf5-4199-4881-bd1f-a51e1b7cdc7c",
+            "984b158b-712c-46d7-b7db-17dc52f4236b", "a6466435-05df-4bef-88e1-5910f6bb8e43",
+            "3a426bf8-7d1e-4cbd-8992-f408cb8be2c4", "c7006dad-b525-45a9-8818-54c83ad487c4",
+            "4776acd2-8488-4653-a2f1-0605a2e4768c", "fa48e6cb-b99b-4eb9-8965-44b1e9c58acc"
         )
 
         private val CATEGORY_MODULE_ID = setOf(
             // Free Users
-            "868606eb-4afc-4e1a-b4e4-75b30da34ac8",
+            "bb5c8bd7-e6fc-40ad-920e-8e1469c1bd38",
             // Premium Users
-            "4f6321c0-21f5-474f-8156-9f6dd6222d7c"
+            "285f84ae-9366-4042-9131-a2986b4084b9"
         )
     }
 }

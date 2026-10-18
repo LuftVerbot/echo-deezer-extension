@@ -64,6 +64,7 @@ class DeezerMedia(private val deezerApi: DeezerApi, private val clientNP: OkHttp
         val formats = when (quality) {
             "128" -> arrayOf("MP3_128")
             "flac" -> arrayOf("FLAC")
+            "flac_24" -> arrayOf("FLAC_24")
             else -> arrayOf("MP3_320")
         }
 

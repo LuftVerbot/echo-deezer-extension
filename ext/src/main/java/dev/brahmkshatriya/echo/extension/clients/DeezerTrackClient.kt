@@ -73,12 +73,14 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
             }
 
             val qualityValue = when (quality) {
+                "flac_24" -> 12
                 "flac" -> 9
                 "320" -> 6
                 "128" -> 3
                 else -> 0
             }
             val qualityTitle = when (quality) {
+                "flac_24" -> "FLAC_24"
                 "flac" -> "FLAC"
                 "320" -> "320kbps"
                 "128" -> "128kbps"
@@ -94,6 +96,7 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
             )
         } catch (e: Exception) {
             when (quality) {
+                "flac_24" -> createStreamableForQuality(track, "flac")
                 "flac" -> createStreamableForQuality(track, "320")
                 "320" -> createStreamableForQuality(track, "128")
                 "128" -> throw Exception("Song not available")
@@ -121,7 +124,7 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
             streamable
         }
 
-        return if (resolvedStreamable.quality == 12) {
+        return if (resolvedStreamable.quality == 15) {
             resolvedStreamable.id.toSource().toMedia()
         } else {
             val contentLength = Utils.getContentLength(resolvedStreamable.id, client)
@@ -134,7 +137,7 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
         }
     }
 
-    private val qualityOptions = listOf("flac", "320", "128")
+    private val qualityOptions = listOf("flac_24", "flac", "320", "128")
 
     suspend fun loadTrack(track: Track): Track {
         deezerExtension.handleArlExpiration()
@@ -160,12 +163,14 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
         } else {
             qualityOptions.map { quality ->
                 val qualityValue = when (quality) {
+                    "flac_24" -> 12
                     "flac" -> 9
                     "320" -> 6
                     "128" -> 3
                     else -> 0
                 }
                 val qualityTitle = when (quality) {
+                    "flac_24" -> "FLAC_24"
                     "flac" -> "FLAC"
                     "320" -> "320kbps"
                     "128" -> "128kbps"

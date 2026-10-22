@@ -3,6 +3,7 @@ package dev.brahmkshatriya.echo.extension.api
 import dev.brahmkshatriya.echo.common.helpers.ContinuationCallback.Companion.await
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.extension.DeezerApi
+import dev.brahmkshatriya.echo.extension.DeezerSession
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -15,11 +16,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 
-class DeezerMedia(private val deezerApi: DeezerApi, private val clientNP: OkHttpClient) {
+class DeezerMedia(private val deezerApi: DeezerApi, private val session: DeezerSession, private val clientNP: OkHttpClient) {
 
     suspend fun getMP3MediaUrl(track: Track, arl: String, sid: String, licenseToken: String, is128: Boolean): JsonObject {
         val headers = Headers.Builder().apply {
-            //add("Accept-Encoding", "gzip")
             add("Accept-Language", deezerApi.langCode)
             add("Cache-Control", "max-age=0")
             add("Connection", "Keep-alive")
@@ -62,9 +62,7 @@ class DeezerMedia(private val deezerApi: DeezerApi, private val clientNP: OkHttp
 
     suspend fun getMediaUrl(track: Track, quality: String): JsonObject {
         val formats = when (quality) {
-            "128" -> arrayOf("MP3_128")
-            "flac" -> arrayOf("FLAC")
-            "flac_24" -> arrayOf("FLAC_24")
+            "flac" -> if(session.settings?.getBoolean("flac_24") == true) arrayOf("FLAC_24", "FLAC") else arrayOf("FLAC")
             else -> arrayOf("MP3_320")
         }
 

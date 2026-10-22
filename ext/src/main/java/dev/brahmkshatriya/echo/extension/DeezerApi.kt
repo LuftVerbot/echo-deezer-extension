@@ -29,11 +29,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.Headers
-import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.InputStream
 import java.math.BigInteger
@@ -61,6 +59,13 @@ class DeezerApi(private val session: DeezerSession) {
         private const val CLIENT_ID = "447462"
 
         private const val CLIENT_SECRET = "a83bf7f38ad2f137e444727cfc3775cf"
+
+        private const val GW_LIGHT = "https://www.deezer.com/ajax/gw-light.php"
+        private const val API = "https://api.deezer.com/1.0/gateway.php"
+        private const val PIPE = "https://pipe.deezer.com/api"
+        private const val AUTH = "https://auth.deezer.com/login/anonymous"
+
+        private const val LYRICS_QUERY = "query SynchronizedTrackLyrics(\$trackId: String!) { track(trackId: \$trackId) { lyrics { synchronizedLines { lrcTimestamp line } } } }"
     }
 
     private val language: String
@@ -173,20 +178,7 @@ class DeezerApi(private val session: DeezerSession) {
         gatewayInput: String? = "",
         np: Boolean = false
     ): JsonObject = withContext(Dispatchers.IO) {
-        val url = HttpUrl.Builder()
-            .scheme("https").host("www.deezer.com")
-            .addPathSegments("ajax/gw-light.php")
-            .addQueryParameter("method", method)
-            .addQueryParameter("input", "3")
-            .addQueryParameter("api_version", "1.0")
-            .addQueryParameter("api_token", token)
-            .apply {
-                if (!gatewayInput.isNullOrEmpty()) {
-                    addQueryParameter("gateway_input", gatewayInput)
-                }
-            }
-            .build()
-
+        val url = "$GW_LIGHT?method=$method&input=3&api_version=1.0&api_token=$token${if (!gatewayInput.isNullOrEmpty()) "&gateway_input=$gatewayInput" else ""}"
         val requestBody =  encodeJson(paramsBuilder).toRequestBody()
         val request = Request.Builder()
             .url(url)
@@ -242,16 +234,7 @@ class DeezerApi(private val session: DeezerSession) {
         method: String,
         paramsBuilder: JsonObjectBuilder.() -> Unit = {}
     ): JsonObject = withContext(Dispatchers.IO) {
-        val url = HttpUrl.Builder()
-            .scheme("https").host("api.deezer.com")
-            .addPathSegments("1.0/gateway.php")
-            .addQueryParameter("api_key", APP_API_KEY)
-            .addQueryParameter("sid", sid)
-            .addQueryParameter("method", method)
-            .addQueryParameter("output", "3")
-            .addQueryParameter("input", "3")
-            .build()
-
+        val url = "$API?api_key=$APP_API_KEY&sid=$sid&method=$method&output=3&input=3"
         val requestBody =  encodeJson(paramsBuilder).toRequestBody()
         val request = Request.Builder()
             .url(url)
@@ -357,7 +340,7 @@ class DeezerApi(private val session: DeezerSession) {
     }
 
     suspend fun getSid() {
-        val url = "https://www.deezer.com/ajax/gw-light.php?method=user.getArl&input=3&api_version=1.0&api_token=null"
+        val url = "$GW_LIGHT?method=user.getArl&input=3&api_version=1.0&api_token=null"
         val request = Request.Builder()
             .url(url)
             .get()
@@ -373,7 +356,7 @@ class DeezerApi(private val session: DeezerSession) {
 
     //<============= Media =============>
 
-    private val deezerMedia by lazy { DeezerMedia(this, clientNP) }
+    private val deezerMedia by lazy { DeezerMedia(this, session, clientNP) }
 
     suspend fun getMP3MediaUrl(track: Track, is128: Boolean): JsonObject = deezerMedia.getMP3MediaUrl(track, arl, sid, licenseToken, is128)
 
@@ -495,24 +478,20 @@ class DeezerApi(private val session: DeezerSession) {
     //<============= Lyrics =============>
 
     suspend fun lyrics(id: String): JsonObject {
-        val request = Request.Builder()
-            .url("https://auth.deezer.com/login/arl?jo=p&rto=c&i=c")
-            .post(RequestBody.EMPTY)
-            .headers(Headers.headersOf("Cookie", "arl=$arl; sid=$sid"))
-            .build()
+        val request = Request.Builder().url("$AUTH?jo=p&rto=c&i=c").build()
         val response = clientNP.newCall(request).await()
         val jsonObject = decodeJson(response.body.string())
 
         val jwt = jsonObject["jwt"]?.jsonPrimitive?.content
         val params = encodeJson {
             put("operationName", "SynchronizedTrackLyrics")
-            put("query", "query SynchronizedTrackLyrics(\$trackId: String!) {\n  track(trackId: \$trackId) {\n    id\n    isExplicit\n    lyrics {\n      id\n      copyright\n      text\n      writers\n      synchronizedLines {\n        lrcTimestamp\n        line\n        milliseconds\n        duration\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}")
+            put("query", LYRICS_QUERY)
             putJsonObject("variables") {
                 put("trackId", id)
             }
         }
         val pipeRequest = Request.Builder()
-            .url("https://pipe.deezer.com/api")
+            .url(PIPE)
             .post(params.toRequestBody())
             .headers(Headers.headersOf("Authorization", "Bearer $jwt", "Content-Type", "application/json"))
             .build()

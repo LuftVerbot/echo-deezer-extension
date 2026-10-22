@@ -133,7 +133,7 @@ class DeezerParser(private val session: DeezerSession) {
                 Streamable.server(
                     id = data.str("EPISODE_DIRECT_STREAM_URL").orEmpty(),
                     title = title,
-                    quality = 15
+                    quality = 12
                 )
             ),
             extras = mapOf(

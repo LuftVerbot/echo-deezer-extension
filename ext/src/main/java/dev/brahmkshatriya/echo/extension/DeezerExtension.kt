@@ -95,6 +95,12 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
                 "Quality",
                 "quality",
                 mutableListOf(
+                    SettingSwitch(
+                        "Use HiFi FLAC",
+                        "flac_24",
+                        "Use HiFi FLAC when available(Up to 24 Bit / 192 kHz)",
+                        true
+                    ),
                     SettingSlider(
                         "Image Quality",
                         "image_quality",

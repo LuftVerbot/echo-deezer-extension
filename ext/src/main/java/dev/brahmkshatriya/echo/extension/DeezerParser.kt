@@ -1,5 +1,6 @@
 package dev.brahmkshatriya.echo.extension
 
+import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Album
 import dev.brahmkshatriya.echo.common.models.Artist
 import dev.brahmkshatriya.echo.common.models.Date as EchoDate
@@ -14,13 +15,12 @@ import dev.brahmkshatriya.echo.common.models.Radio
 import dev.brahmkshatriya.echo.common.models.Shelf
 import dev.brahmkshatriya.echo.common.models.Streamable
 import dev.brahmkshatriya.echo.common.models.Track
+import dev.brahmkshatriya.echo.extension.Utils.asObject
+import dev.brahmkshatriya.echo.extension.Utils.str
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -28,9 +28,17 @@ import java.util.Locale
 class DeezerParser(private val session: DeezerSession) {
 
     fun JsonElement.toShelfItemsList(name: String = "Unknown"): Shelf? {
-        val items = obj()["items"]?.jsonArray?.mapObjects { it.toEchoMediaItem() }.orEmpty()
+        val items = asObject()["items"]?.jsonArray?.mapObjects { it.toEchoMediaItem() }.orEmpty()
         return items.takeIf { it.isNotEmpty() }?.let {
-            Shelf.Lists.Items(id = name, title = name, list = it)
+            Shelf.Lists.Items(
+                id = name,
+                title = name,
+                type = Shelf.Lists.Type.Linear,
+                more = if(it.size > 4) PagedData.Single<Shelf> { it.map { item ->
+                    item.toShelf() }
+                }.toFeed() else null,
+                list = it
+            )
         }
     }
 
@@ -42,7 +50,15 @@ class DeezerParser(private val session: DeezerSession) {
     fun JsonArray.toShelfItemsList(name: String = "Unknown"): Shelf? {
         val items = mapObjects { it.toEchoMediaItem() }
         return items.takeIf { it.isNotEmpty() }?.let {
-            Shelf.Lists.Items(id = name, title = name, list = it)
+            Shelf.Lists.Items(
+                id = name,
+                title = name,
+                type = Shelf.Lists.Type.Linear,
+                more = if(it.size > 4) PagedData.Single<Shelf> { it.map { item ->
+                    item.toShelf() }
+                }.toFeed() else null,
+                list = it
+            )
         }
     }
 
@@ -51,9 +67,9 @@ class DeezerParser(private val session: DeezerSession) {
         shelf: String,
         crossinline block: suspend (String) -> List<Shelf>
     ): Shelf.Lists.Categories {
-        val arr = obj()["items"]?.jsonArray ?: return Shelf.Lists.Categories(name, name, emptyList())
+        val arr = asObject()["items"]?.jsonArray ?: return Shelf.Lists.Categories(name, name, emptyList())
         val listType = if ("grid" in shelf) Shelf.Lists.Type.Grid else Shelf.Lists.Type.Linear
-        val cats = arr.mapNotNull { it.jsonObject.toShelfCategory(block) }
+        val cats = arr.mapNotNull { it.asObject().toShelfCategory(block) }
         return Shelf.Lists.Categories(
             id = name,
             title = name,
@@ -68,8 +84,8 @@ class DeezerParser(private val session: DeezerSession) {
     ): Shelf.Category? {
         val data = unwrap()
         val type = data.str("__TYPE__") ?: return null
-        return when {
-            "channel" in type -> toChannel(block)
+        return when(type) {
+            in "channel" -> toChannel(block)
             else -> null
         }
     }
@@ -111,7 +127,7 @@ class DeezerParser(private val session: DeezerSession) {
             type = Album.Type.Show,
             title = data.str("SHOW_NAME").orEmpty(),
             cover = getCover(md5, "talk"),
-            trackCount = obj()["EPISODES"]?.jsonObject?.int("total")?.toLong(),
+            trackCount = asObject()["EPISODES"]?.asObject()?.int("total")?.toLong(),
             artists = emptyList(),
             description = data.str("SHOW_DESCRIPTION").orEmpty(),
             extras = mapOf("__TYPE__" to "show")
@@ -148,7 +164,7 @@ class DeezerParser(private val session: DeezerSession) {
     fun JsonObject.toAlbum(): Album = unwrap().let { data ->
         val md5 = data.str("ALB_PICTURE")
         val artistsArr = data.arr("ARTISTS").orEmpty()
-        val trackCount = obj()["SONGS"]?.jsonObject?.int("total")
+        val trackCount = asObject()["SONGS"]?.asObject()?.int("total")
         val rd = data.str("ORIGINAL_RELEASE_DATE")?.toDate()
             ?: data.str("PHYSICAL_RELEASE_DATE")?.toDate()
         Album(
@@ -157,7 +173,7 @@ class DeezerParser(private val session: DeezerSession) {
             cover = getCover(md5, "cover"),
             trackCount = trackCount?.toLong(),
             artists = artistsArr.map { artist ->
-                val obj = artist.jsonObject
+                val obj = artist.asObject()
                 Artist(
                     id = obj.str("ART_ID").orEmpty(),
                     name = obj.str("ART_NAME").orEmpty(),
@@ -178,12 +194,12 @@ class DeezerParser(private val session: DeezerSession) {
     fun JsonObject.toArtist(isShelfItem: Boolean = false): Artist {
         val artistData = when {
             isShelfItem && this["data"] == null -> this
-            this["DATA"]?.jsonObject?.get("ART_BANNER") == null -> this["DATA"]?.jsonObject ?: this["data"]?.jsonObject ?: this
-            else -> this["data"]?.jsonObject ?: this
+            this["DATA"]?.asObject()?.get("ART_BANNER") == null -> this["DATA"]?.asObject() ?: this["data"]?.asObject() ?: this
+            else -> this["data"]?.asObject() ?: this
         }
         val md5 = artistData.str("ART_PICTURE")
         val bio = if (this["BIO"] is JsonObject) {
-            val b = this["BIO"]!!.jsonObject
+            val b = this["BIO"]!!.asObject()
             val p1 = b.str("BIO").orEmpty().replace("<br />", "").replace("\\n", "")
             val p2 = b.str("RESUME").orEmpty().replace("<p>", "").replace("</p>", "")
             p1 + p2
@@ -223,7 +239,7 @@ class DeezerParser(private val session: DeezerSession) {
             isrc = data.str("ISRC"),
             isExplicit = data.str("EXPLICIT_LYRICS") == "1",
             extras = buildMap {
-                put("FALLBACK_ID", data["FALLBACK"]?.jsonObject?.str("SNG_ID").orEmpty())
+                put("FALLBACK_ID", data["FALLBACK"]?.asObject()?.str("SNG_ID").orEmpty())
                 put("TRACK_TOKEN", data.str("TRACK_TOKEN").orEmpty())
                 put("FILESIZE_MP3_MISC", data.str("FILESIZE_MP3_MISC") ?: "0")
                 put("TYPE", "cover")
@@ -239,7 +255,7 @@ class DeezerParser(private val session: DeezerSession) {
             is JsonArray -> {
                 int("NB_SONG")
             }
-            else -> this["SONGS"]?.jsonObject?.int("total")
+            else -> this["SONGS"]?.asObject()?.int("total")
         }
         val created = data.str("DATE_ADD")?.toDate()
         Playlist(
@@ -260,7 +276,7 @@ class DeezerParser(private val session: DeezerSession) {
 
     private fun JsonObject.toRadio(): Radio {
         val data = unwrap()
-        val image = this["pictures"]?.jsonArray?.firstOrNull()?.jsonObject
+        val image = this["pictures"]?.jsonArray?.firstOrNull()?.asObject()
         val md5 = image?.str("md5")
         val type = image?.str("type")
         return Radio(
@@ -299,7 +315,7 @@ class DeezerParser(private val session: DeezerSession) {
     private fun parseArtists(arr: JsonArray?, data: JsonObject): List<Artist> {
         return if (!arr.isNullOrEmpty()) {
             arr.mapNotNull {
-                val o = it.jsonObject
+                val o = it.asObject()
                 Artist(
                     id = o.str("ART_ID").orEmpty(),
                     name = o.str("ART_NAME").orEmpty(),
@@ -316,17 +332,11 @@ class DeezerParser(private val session: DeezerSession) {
         }
     }
 
-    fun JsonElement.obj(): JsonObject = jsonObject
-    fun JsonObject.unwrap(): JsonObject = this["data"]?.jsonObject ?: this["DATA"]?.jsonObject ?: this
-
-    fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull()
+    fun JsonObject.unwrap(): JsonObject = this["data"]?.asObject() ?: this["DATA"]?.asObject() ?: this
     private fun JsonObject.int(key: String): Int? = str(key)?.toIntOrNull()
     private fun JsonObject.long(key: String): Long? = str(key)?.toLongOrNull()
     private fun JsonObject.arr(key: String): JsonArray? = this[key]?.jsonArray
 
-    private fun JsonPrimitive.contentOrNull(): String? =
-        runCatching { content }.getOrNull()
-
     private inline fun <T> JsonArray.mapObjects(transform: (JsonObject) -> T?): List<T> =
-        mapNotNull { runCatching { transform(it.jsonObject) }.getOrNull() }
+        mapNotNull { runCatching { transform(it.asObject()) }.getOrNull() }
 }

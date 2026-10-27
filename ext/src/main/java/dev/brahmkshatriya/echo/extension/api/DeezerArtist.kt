@@ -22,7 +22,7 @@ class DeezerArtist(private val deezerApi: DeezerApi) {
             method = "deezer.pageProfile",
             paramsBuilder = {
                 put("nb", 40)
-                put ("tab", "artists")
+                put("tab", "artists")
                 put("user_id", userId)
             }
         )

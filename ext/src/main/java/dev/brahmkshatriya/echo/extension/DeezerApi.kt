@@ -7,6 +7,8 @@ import dev.brahmkshatriya.echo.common.models.Playlist
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.common.models.User
 import dev.brahmkshatriya.echo.extension.DeezerSession.DeezerCredentials
+import dev.brahmkshatriya.echo.extension.Utils.asObject
+import dev.brahmkshatriya.echo.extension.Utils.str
 import dev.brahmkshatriya.echo.extension.api.DeezerAlbum
 import dev.brahmkshatriya.echo.extension.api.DeezerArtist
 import dev.brahmkshatriya.echo.extension.api.DeezerMedia
@@ -24,8 +26,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import okhttp3.Headers
@@ -210,7 +210,7 @@ class DeezerApi(private val session: DeezerSession) {
 
             when(result["error"]) {
                 is JsonObject -> {
-                    if (result["error"]?.jsonObject["VALID_TOKEN_REQUIRED"]?.jsonPrimitive?.content?.contains("Invalid CSRF token") == true) {
+                    if (result["error"]?.asObject()?.str("VALID_TOKEN_REQUIRED")?.contains("Invalid CSRF token") == true) {
                         if (email.isEmpty() && pass.isEmpty()) {
                             session.isArlExpired(true)
                             throw Exception("Please re-login (Best use User + Pass method)")
@@ -222,9 +222,7 @@ class DeezerApi(private val session: DeezerSession) {
                         }
                     }
                 }
-                else -> {
-                    null
-                }
+                else -> { }
             }
             result
         }
@@ -255,12 +253,12 @@ class DeezerApi(private val session: DeezerSession) {
         val userList = mutableListOf<User>()
         val jObject = callApi("deezer.getUserData")
         val userResults = jObject["results"]!!
-        val userObject = userResults.jsonObject["USER"]!!
-        val token = userResults.jsonObject["checkForm"]!!.jsonPrimitive.content
-        val userId = userObject.jsonObject["USER_ID"]!!.jsonPrimitive.content
-        val licenseToken = userObject.jsonObject["OPTIONS"]!!.jsonObject["license_token"]!!.jsonPrimitive.content
-        val name = userObject.jsonObject["BLOG_NAME"]!!.jsonPrimitive.content
-        val cover = userObject.jsonObject["USER_PICTURE"]!!.jsonPrimitive.content
+        val userObject = userResults.asObject()["USER"]!!
+        val token = userResults.asObject().str("checkForm")!!
+        val userId = userObject.asObject().str("USER_ID")!!
+        val licenseToken = userObject.asObject()["OPTIONS"]!!.asObject().str("license_token")!!
+        val name = userObject.asObject().str("BLOG_NAME")!!
+        val cover = userObject.asObject().str("USER_PICTURE")!!
         val user = User(
             id = userId,
             name = name,
@@ -296,11 +294,11 @@ class DeezerApi(private val session: DeezerSession) {
             // Get access token
             val responseJson = getToken(params, sid)
             val apiResponse = decodeJson(responseJson)
-            session.updateCredentials(token = apiResponse.jsonObject["access_token"]!!.jsonPrimitive.content)
+            session.updateCredentials(token = apiResponse.asObject().str("access_token")!!)
 
             // Get ARL
             val arlObject = callApi("user.getArl")
-            session.updateCredentials(arl = arlObject["results"]!!.jsonPrimitive.content)
+            session.updateCredentials(arl = arlObject.str("results")!!)
         } catch (e: Exception) {
             if (remainingAttempts > 1) {
                 getArlByEmail(mail, password, remainingAttempts - 1)
@@ -482,7 +480,7 @@ class DeezerApi(private val session: DeezerSession) {
         val response = clientNP.newCall(request).await()
         val jsonObject = decodeJson(response.body.string())
 
-        val jwt = jsonObject["jwt"]?.jsonPrimitive?.content
+        val jwt = jsonObject.str("jwt")
         val params = encodeJson {
             put("operationName", "SynchronizedTrackLyrics")
             put("query", LYRICS_QUERY)

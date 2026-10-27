@@ -15,7 +15,7 @@ class DeezerPlaylist(private val deezerApi: DeezerApi) {
             method = "deezer.pagePlaylist",
             paramsBuilder = {
                 put("playlist_id", playlist.id)
-                put ("lang", deezerApi.langCode, )
+                put("lang", deezerApi.langCode, )
                 put("nb", playlist.trackCount)
                 put("tags", true)
                 put("start", 0)
@@ -28,7 +28,7 @@ class DeezerPlaylist(private val deezerApi: DeezerApi) {
             method = "deezer.pageProfile",
             paramsBuilder = {
                 put("user_id", userId)
-                put ("tab", "playlists")
+                put("tab", "playlists")
                 put("nb", 10000)
             }
         )
@@ -88,7 +88,7 @@ class DeezerPlaylist(private val deezerApi: DeezerApi) {
             method = "playlist.create",
             paramsBuilder = {
                 put("title", title)
-                put ("description", description, )
+                put("description", description, )
                 put("songs", buildJsonArray {})
                 put("status", 0)
             }
@@ -109,7 +109,7 @@ class DeezerPlaylist(private val deezerApi: DeezerApi) {
             method = "playlist.update",
             paramsBuilder = {
                 put("description", description)
-                put ("playlist_id", id)
+                put("playlist_id", id)
                 put("status", 0)
                 put("title", title)
             }
@@ -121,7 +121,7 @@ class DeezerPlaylist(private val deezerApi: DeezerApi) {
             method = "playlist.updateOrder",
             paramsBuilder = {
                 put("order", buildJsonArray { ids.forEach { add(it) } })
-                put ("playlist_id", playlistId)
+                put("playlist_id", playlistId)
                 put("position", 0)
             }
         )

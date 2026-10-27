@@ -11,11 +11,11 @@ import dev.brahmkshatriya.echo.common.models.Radio
 import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerParser
+import dev.brahmkshatriya.echo.extension.Utils.asObject
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 
 class DeezerRadioClient(private val api: DeezerApi, private val parser: DeezerParser) {
 
@@ -140,18 +140,18 @@ class DeezerRadioClient(private val api: DeezerApi, private val parser: DeezerPa
     )
 
     private fun JsonObject.resultsArray(key: String): JsonArray? =
-        this["results"]?.jsonObject?.get(key)?.jsonArray
+        this["results"]?.asObject()?.get(key)?.jsonArray
 
     private fun JsonElement.safeObj(): JsonObject? =
-        runCatching { this.jsonObject }.getOrNull()
+        runCatching { this.asObject() }.getOrNull()
 
     private fun JsonObject.toTrack(parser: DeezerParser): Track =
         parser.run { this@toTrack.toTrack() }
 
     private fun JsonObject.lastTrackFromSongs(parser: DeezerParser): Track? =
         runCatching {
-            val songs = this["results"]?.jsonObject
-                ?.get("SONGS")?.jsonObject
+            val songs = this["results"]?.asObject()
+                ?.get("SONGS")?.asObject()
                 ?.get("data")?.jsonArray
                 ?: return null
             val lastObj = songs.lastOrNull()?.safeObj() ?: return null

@@ -9,10 +9,10 @@ import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerExtension
 import dev.brahmkshatriya.echo.extension.DeezerParser
 import dev.brahmkshatriya.echo.extension.Utils
+import dev.brahmkshatriya.echo.extension.Utils.asObject
+import dev.brahmkshatriya.echo.extension.Utils.str
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 
 class DeezerTrackClient(private val deezerExtension: DeezerExtension, private val api: DeezerApi, private val parser: DeezerParser) {
@@ -20,12 +20,12 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
     private val client by lazy { OkHttpClient() }
 
     private fun extractUrlFromJson(json: JsonObject): String? {
-        val data = json["data"]?.jsonArray?.firstOrNull()?.jsonObject ?: return null
-        val media = data["media"]?.jsonArray?.firstOrNull()?.jsonObject ?: return null
-        val source = media["sources"]?.jsonArray?.getOrNull(1)?.jsonObject
-            ?: media["sources"]?.jsonArray?.firstOrNull()?.jsonObject
+        val data = json["data"]?.jsonArray?.firstOrNull()?.asObject() ?: return null
+        val media = data["media"]?.jsonArray?.firstOrNull()?.asObject() ?: return null
+        val source = media["sources"]?.jsonArray?.getOrNull(1)?.asObject()
+            ?: media["sources"]?.jsonArray?.firstOrNull()?.asObject()
             ?: return null
-        return source["url"]?.jsonPrimitive?.content
+        return source.str("url")
     }
 
     private suspend fun createStreamableForQuality(track: Track, quality: String): Streamable {
@@ -36,7 +36,7 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
                 else api.getMP3MediaUrl(track, quality == "128")
             val mjString = mediaJson.toString()
             if (mjString.contains("License token has no sufficient rights on requested media")) createStreamableForQuality(track, "128")
-            val trackJsonData = mediaJson["data"]?.jsonArray?.firstOrNull()?.jsonObject
+            val trackJsonData = mediaJson["data"]?.jsonArray?.firstOrNull()?.asObject()
             val mediaIsEmpty = trackJsonData?.get("media")?.jsonArray?.isEmpty() == true
 
             val (finalUrl, fallbackTrack) = when {
@@ -44,7 +44,7 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
                     val fallBackId = track.extras["FALLBACK_ID"].orEmpty()
                     if (quality == "128") {
                         val fallbackObject = api.track(fallBackId)
-                        val resultOj = fallbackObject["results"]?.jsonObject!!
+                        val resultOj = fallbackObject["results"]?.asObject()!!
                         val fallBackTrack = parser.run { resultOj.toTrack() }
                         val fbMediaJson = api.getMP3MediaUrl(fallBackTrack, true)
                         val url = extractUrlFromJson(fbMediaJson)!!
@@ -59,7 +59,7 @@ class DeezerTrackClient(private val deezerExtension: DeezerExtension, private va
 
                 mjString.contains("An error occurred while decoding track token") -> {
                     val fallbackObject = api.track(currentTrackId)
-                    val resultOj = fallbackObject["results"]?.jsonObject!!
+                    val resultOj = fallbackObject["results"]?.asObject()!!
                     val fallBackTrack = parser.run { resultOj.toTrack() }
                     val fbMediaJson = api.getMP3MediaUrl(fallBackTrack, true)
                     val url = extractUrlFromJson(fbMediaJson)!!

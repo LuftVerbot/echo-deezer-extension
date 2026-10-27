@@ -10,39 +10,39 @@ import dev.brahmkshatriya.echo.common.models.Track
 import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerExtension
 import dev.brahmkshatriya.echo.extension.DeezerParser
+import dev.brahmkshatriya.echo.extension.Utils.asObject
+import dev.brahmkshatriya.echo.extension.Utils.str
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 class DeezerArtistClient(private val deezerExtension: DeezerExtension, private val api: DeezerApi, private val parser: DeezerParser) {
 
     fun getShelves(artist: Artist): Feed<Shelf> = PagedData.Single {
         deezerExtension.handleArlExpiration()
         val jsonObject = api.artist(artist.id)
-        val resultsObject = jsonObject["results"]?.jsonObject ?: return@Single emptyList()
+        val resultsObject = jsonObject["results"]?.asObject() ?: return@Single emptyList()
 
         orderedKeys.mapNotNull { key ->
             val payload = resultsObject[key] ?: return@mapNotNull null
-            shelfFactories[key]?.invoke(parser, payload.jsonObject)
+            shelfFactories[key]?.invoke(parser, payload.asObject())
         }
     }.toFeed()
 
     suspend fun loadArtist(artist: Artist): Artist {
         deezerExtension.handleArlExpiration()
         val jsonObject = api.artist(artist.id)
-        val resultsObject = jsonObject["results"]?.jsonObject ?: return artist
+        val resultsObject = jsonObject["results"]?.asObject() ?: return artist
         return parser.run { resultsObject.toArtist() }
     }
 
     suspend fun isFollowing(item: EchoMediaItem): Boolean {
-        val dataArray = api.getArtists()["results"]?.jsonObject
-            ?.get("TAB")?.jsonObject
-            ?.get("artists")?.jsonObject
+        val dataArray = api.getArtists()["results"]?.asObject()
+            ?.get("TAB")?.asObject()
+            ?.get("artists")?.asObject()
             ?.get("data")?.jsonArray ?: return false
 
         return dataArray.any { artistItem ->
-            val artistId = artistItem.jsonObject["ART_ID"]?.jsonPrimitive?.content
+            val artistId = artistItem.asObject().str("ART_ID")
             artistId == item.id
         }
     }
@@ -73,7 +73,7 @@ class DeezerArtistClient(private val deezerExtension: DeezerExtension, private v
                 )
             },
             "HIGHLIGHT" to filterEmpty { jObject ->
-                jObject["ITEM"]?.jsonObject?.toShelfItemsList("Highlight").nullIfEmpty()
+                jObject["ITEM"]?.asObject()?.toShelfItemsList("Highlight").nullIfEmpty()
             },
             "SELECTED_PLAYLIST" to filterEmpty { jObject ->
                 jObject["data"]?.jsonArray?.toShelfItemsList("Selected Playlists").nullIfEmpty()

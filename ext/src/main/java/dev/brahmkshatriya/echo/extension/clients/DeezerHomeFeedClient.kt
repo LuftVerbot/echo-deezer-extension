@@ -1,22 +1,20 @@
 package dev.brahmkshatriya.echo.extension.clients
 
-import dev.brahmkshatriya.echo.common.helpers.PagedData
 import dev.brahmkshatriya.echo.common.models.Feed
 import dev.brahmkshatriya.echo.common.models.Feed.Companion.toFeed
 import dev.brahmkshatriya.echo.common.models.Shelf
 import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerExtension
 import dev.brahmkshatriya.echo.extension.DeezerParser
+import dev.brahmkshatriya.echo.extension.Utils.asObject
+import dev.brahmkshatriya.echo.extension.Utils.str
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 class DeezerHomeFeedClient(
     private val deezerExtension: DeezerExtension,
@@ -24,44 +22,36 @@ class DeezerHomeFeedClient(
     private val parser: DeezerParser
 ) {
 
-    fun loadHomeFeed(shelf: String): Feed<Shelf> = PagedData.Single {
+    suspend fun loadHomeFeed(shelf: String): Feed<Shelf> = supervisorScope {
         deezerExtension.handleArlExpiration()
-        val homePageResults = api.page("home")["results"]?.jsonObject ?: JsonObject(emptyMap())
+        api.updateCountry()
+        val homePageResults = api.page("home")["results"]?.asObject() ?: JsonObject(emptyMap())
         val homeSections = homePageResults["sections"]?.jsonArray ?: JsonArray(emptyList())
 
-        supervisorScope {
-            homeSections.mapNotNull { section ->
-                val obj = section.asObjectOrNull() ?: return@mapNotNull null
-                val id = obj.optString("module_id") ?: return@mapNotNull null
-                val title = obj.optString("title") ?: return@mapNotNull null
+        homeSections.mapNotNull { section ->
+            val obj = section.asObject() ?: return@mapNotNull null
+            val id = obj.str("module_id") ?: return@mapNotNull null
+            val title = obj.str("title") ?: return@mapNotNull null
 
-                when (id) {
-                    in ITEM_MODULE_IDS -> async(dispatcher) {
-                        runCatching {
-                            parser.run {
-                                section.toShelfItemsList(title)
-                            }
-                        }.getOrNull()
+            when (id) {
+                in ITEM_MODULE_IDS -> async(dispatcher) {
+                    parser.run {
+                        section.toShelfItemsList(title)
                     }
-                    in CATEGORY_MODULE_ID -> async(dispatcher) {
-                        runCatching {
-                            parser.run {
-                                section.toShelfCategoryList(title, shelf) { target ->
-                                    deezerExtension.channelFeed(target)
-                                }
-                            }
-                        }.getOrNull()
-                    }
-                    else -> null
                 }
-            }.awaitAll().filterNotNull()
-        }
+
+                in CATEGORY_MODULE_ID -> async(dispatcher) {
+                    parser.run {
+                        section.toShelfCategoryList(title, shelf) { target ->
+                            deezerExtension.channelFeed(target)
+                        }
+                    }
+                }
+
+                else -> null
+            }
+        }.awaitAll().filterNotNull()
     }.toFeed()
-
-    private fun JsonElement.asObjectOrNull(): JsonObject? = this as? JsonObject
-
-    private fun JsonObject.optString(key: String): String? =
-        runCatching { this[key]?.jsonPrimitive?.content }.getOrNull()
 
     companion object {
         private val dispatcher = Dispatchers.Default

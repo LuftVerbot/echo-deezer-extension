@@ -1,5 +1,9 @@
 package dev.brahmkshatriya.echo.extension
 
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.security.MessageDigest
@@ -57,6 +61,11 @@ object Utils {
             return response.header("Content-Length")?.toLong() ?: 0L
         }
     }
+
+    fun JsonObject.str(key: String): String? =
+        runCatching { this[key]?.jsonPrimitive?.content }.getOrNull()
+
+    fun JsonElement.asObject(): JsonObject = jsonObject
 }
 
 /**

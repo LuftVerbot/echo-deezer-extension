@@ -42,6 +42,8 @@ import dev.brahmkshatriya.echo.common.settings.SettingSwitch
 import dev.brahmkshatriya.echo.common.settings.Settings
 import dev.brahmkshatriya.echo.extension.DeezerCountries.getDefaultCountryIndex
 import dev.brahmkshatriya.echo.extension.DeezerCountries.getDefaultLanguageIndex
+import dev.brahmkshatriya.echo.extension.Utils.asObject
+import dev.brahmkshatriya.echo.extension.Utils.str
 import dev.brahmkshatriya.echo.extension.clients.DeezerAlbumClient
 import dev.brahmkshatriya.echo.extension.clients.DeezerArtistClient
 import dev.brahmkshatriya.echo.extension.clients.DeezerHomeFeedClient
@@ -57,8 +59,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
     SearchFeedClient, QuickSearchClient,AlbumClient, ArtistClient, FollowClient, PlaylistClient, LyricsClient, ShareClient,
@@ -193,7 +193,7 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
     override suspend fun createPlaylist(title: String, description: String?): Playlist {
         handleArlExpiration()
         val jsonObject = api.createPlaylist(title, description)
-        val id = jsonObject["results"]?.jsonPrimitive?.content.orEmpty()
+        val id = jsonObject.str("results").orEmpty()
         val playlist = Playlist(
             id = id,
             title = title,
@@ -234,10 +234,10 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
     override suspend fun isItemLiked(item: EchoMediaItem): Boolean {
         when(item) {
             is Track -> {
-                val dataArray = api.getTracks()["results"]?.jsonObject
+                val dataArray = api.getTracks()["results"]?.asObject()
                     ?.get("data")?.jsonArray ?: return false
 
-                val trackIds = dataArray.mapNotNull { it.jsonObject["SNG_ID"]?.jsonPrimitive?.content }.toSet()
+                val trackIds = dataArray.mapNotNull { it.asObject().str("SNG_ID") }.toSet()
                 return item.id in trackIds
             }
 
@@ -251,12 +251,12 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
         handleArlExpiration()
         val playlistList = mutableListOf<Pair<Playlist, Boolean>>()
         val jsonObject = api.getPlaylists()
-        val resultObject = jsonObject["results"]!!.jsonObject
-        val tabObject = resultObject["TAB"]!!.jsonObject
-        val playlistObject = tabObject["playlists"]!!.jsonObject
+        val resultObject = jsonObject["results"]!!.asObject()
+        val tabObject = resultObject["TAB"]!!.asObject()
+        val playlistObject = tabObject["playlists"]!!.asObject()
         val dataArray = playlistObject["data"]!!.jsonArray
         dataArray.map {
-            val playlist = parser.run { it.jsonObject.toPlaylist() }
+            val playlist = parser.run { it.asObject().toPlaylist() }
             if (playlist.isEditable) {
                 playlistList.add(Pair(playlist, false))
             }
@@ -304,17 +304,17 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
         idKey: String,
         itemId: String
     ): Boolean {
-        val dataObject = getItems()["results"]?.jsonObject
+        val dataObject = getItems()["results"]?.asObject()
         val dataArray = if (idKey == "SNG_ID") {
             dataObject?.get("data")?.jsonArray ?: return false
 
         } else {
-            dataObject?.get("TAB")?.jsonObject
-                ?.values?.firstOrNull()?.jsonObject
+            dataObject?.get("TAB")?.asObject()
+                ?.values?.firstOrNull()?.asObject()
                 ?.get("data")?.jsonArray ?: return false
         }
         return dataArray.any { item ->
-            val id = item.jsonObject[idKey]?.jsonPrimitive?.content
+            val id = item.asObject().str(idKey)
             id == itemId
         }
     }
@@ -358,14 +358,18 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
 
     suspend fun channelFeed(target: String): List<Shelf> {
         val jsonObject = api.page(target.substringAfter("/"))
-        val channelPageResults = jsonObject["results"]!!.jsonObject
+        val channelPageResults = jsonObject["results"]!!.asObject()
         val channelSections = channelPageResults["sections"]!!.jsonArray
         return supervisorScope {
             channelSections.map { section ->
-                async(Dispatchers.Default) {
+                async(dispatcher) {
+                    val title = section.asObject().str("title")
                     parser.run {
-                        section.jsonObject["title"]?.jsonPrimitive?.content
-                            ?.let { section.toShelfItemsList(it) }
+                        section.toShelfItemsList(
+                            if (title.isNullOrEmpty())
+                            channelPageResults.str("title").orEmpty()
+                            else title
+                        )
                     }
                 }
             }.awaitAll().filterNotNull()
@@ -452,8 +456,8 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
             if (arl != null && sid != null) {
                 session.updateCredentials(arl = arl, sid = sid)
                 val credJObj = api.decodeJson(request.body?.decodeToString()!!)
-                val mail = credJObj["MAIL"]?.jsonPrimitive?.content!!
-                val pass = credJObj["PASSWORD"]?.jsonPrimitive?.content!!
+                val mail = credJObj.str("MAIL")!!
+                val pass = credJObj.str("PASSWORD")!!
                 session.updateCredentials(
                     email = mail,
                     pass = pass
@@ -613,6 +617,7 @@ class DeezerExtension : HomeFeedClient, TrackClient, LikeClient, RadioClient,
     private val history: Boolean get() = session.settings?.getBoolean("history") != false
 
     companion object {
+        private val dispatcher = Dispatchers.Default
         private const val DEFAULT_TYPE = "grid"
     }
 }

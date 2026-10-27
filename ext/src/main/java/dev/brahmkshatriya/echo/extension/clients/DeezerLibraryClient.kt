@@ -7,6 +7,7 @@ import dev.brahmkshatriya.echo.common.models.Tab
 import dev.brahmkshatriya.echo.extension.DeezerApi
 import dev.brahmkshatriya.echo.extension.DeezerExtension
 import dev.brahmkshatriya.echo.extension.DeezerParser
+import dev.brahmkshatriya.echo.extension.Utils.asObject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -15,7 +16,6 @@ import kotlinx.coroutines.supervisorScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 
 class DeezerLibraryClient(
     private val deezerExtension: DeezerExtension,
@@ -63,14 +63,14 @@ class DeezerLibraryClient(
         return Feed(tabs) { tab ->
             val id = tab?.id
             val data = when (id) {
-                TabId.ALL.id -> loadAll() ?: emptyList()
+                TabId.ALL.id -> loadAll()
                 else -> loadSingle(id)
             }
             data.toFeedData(Feed.Buttons(showPlayAndShuffle = true))
         }
     }
 
-    private suspend fun loadAll(): List<Shelf>? = supervisorScope {
+    private suspend fun loadAll(): List<Shelf> = supervisorScope {
         deezerExtension.handleArlExpiration()
         configs.values.map { cfg ->
             async(cpuDispatcher) {
@@ -86,12 +86,12 @@ class DeezerLibraryClient(
         deezerExtension.handleArlExpiration()
         val json = cfg.request(api)
         val arr = cfg.extractor(json) ?: return emptyList()
-        return parser.run { arr.mapNotNull { it.jsonObject.toEchoMediaItem()?.toShelf() } }
+        return parser.run { arr.mapNotNull { it.asObject().toEchoMediaItem()?.toShelf() } }
     }
 
-    private fun JsonObject.results(): JsonObject? = this["results"]?.jsonObject
+    private fun JsonObject.results(): JsonObject? = this["results"]?.asObject()
     private fun JsonObject.resultsDataArray(): JsonArray? =
         results()?.get("data")?.jsonArray
     private fun JsonObject.tabDataArray(tabId: String): JsonArray? =
-        results()?.get("TAB")?.jsonObject?.get(tabId)?.jsonObject?.get("data")?.jsonArray
+        results()?.get("TAB")?.asObject()?.get(tabId)?.asObject()?.get("data")?.jsonArray
 }
